@@ -17,8 +17,23 @@
 
 * {
     box-sizing: border-box;
+}
+
+/* Disable double-tap zoom on main table, but allow scrolling on phone */
+body:not(#hole-cards) * {
     touch-action: manipulation;
-    /* disable double tap to zoom */
+}
+
+/* Phone view - allow normal touch scrolling */
+body#hole-cards,
+body#hole-cards * {
+    touch-action: pan-y pan-x;
+}
+
+/* But keep manipulation on buttons/sliders for responsiveness */
+body#hole-cards button,
+body#hole-cards input[type="range"] {
+    touch-action: manipulation;
 }
 
 html {
@@ -128,11 +143,23 @@ GRID - New layout with scoreboard left, players in one row
 -------------------------------------------------------------------
 */
 html, body {
+    margin: 0;
+    padding: 0;
+}
+
+/* Main table view - no scrolling */
+body:not(#hole-cards) {
     overflow: hidden;
     height: 100vh;
     max-height: 100vh;
-    margin: 0;
-    padding: 0;
+}
+
+/* Phone view - allow scrolling for iOS Safari */
+body#hole-cards {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 100vh;
+    height: auto;
 }
 
 main {
@@ -317,10 +344,12 @@ SINGLE VIEW
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    min-height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh; /* fallback for browsers supporting dvh */
     width: 100vw;
     margin: 0 3vw;
     max-width: 960px;
+    padding-bottom: env(safe-area-inset-bottom, 20px); /* iOS safe area */
 }
 
 #singleview-notifications {
@@ -706,7 +735,7 @@ PHONE ACTION CONTROLS (hole-cards.html)
     align-items: center;
     gap: 1.5rem;
     margin-top: 2rem;
-    margin-bottom: 3rem;
+    margin-bottom: calc(3rem + env(safe-area-inset-bottom, 20px));
     padding: 1.5rem;
     background-color: hsla(220, 40%, 20%, 0.9);
     border-radius: 1rem;
