@@ -2,7 +2,7 @@ const kv = await Deno.openKv();
 
 const corsHeaders = {
 	"Access-Control-Allow-Origin": "*",
-	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+	"Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 	"Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -20,6 +20,10 @@ function jsonResponse(body, status = 200) {
 function textResponse(body, status) {
 	return new Response(body, { status, headers: withCors() });
 }
+
+/* --------------------------------------------------------------------------------------------------
+State Management (existing functionality)
+---------------------------------------------------------------------------------------------------*/
 
 async function getState(tableId) {
 	const entry = await kv.get(["table", tableId]);
@@ -39,7 +43,7 @@ async function saveState(tableId, payload) {
 	return record;
 }
 
-async function handlePost(request) {
+async function handleStatePost(request) {
 	let data;
 	try {
 		data = await request.json();
@@ -64,7 +68,7 @@ async function handlePost(request) {
 	});
 }
 
-async function handleGet(url) {
+async function handleStateGet(url) {
 	const tableId = url.searchParams.get("tableId") || "default";
 	const sinceParam = url.searchParams.get("sinceVersion");
 	const sinceVersion = sinceParam ? Number.parseInt(sinceParam, 10) : 0;
@@ -78,29 +82,145 @@ async function handleGet(url) {
 	return jsonResponse(record);
 }
 
+/* --------------------------------------------------------------------------------------------------
+Player Action Management (new functionality for phone controls)
+---------------------------------------------------------------------------------------------------*/
+
+async function getAction(tableId, seatIndex) {
+	const entry = await kv.get(["action", tableId, seatIndex]);
+	return entry.value ?? null;
+}
+
+async function saveAction(tableId, seatIndex, action) {
+	const record = {
+		action: action.action, // "fold", "check", "call", "raise", "allin"
+		amount: action.amount ?? 0,
+		timestamp: Date.now(),
+	};
+	// Actions expire after 5 minutes (should be consumed much faster)
+	await kv.set(["action", tableId, seatIndex], record, { expireIn: 300_000 });
+	return record;
+}
+
+async function deleteAction(tableId, seatIndex) {
+	await kv.delete(["action", tableId, seatIndex]);
+}
+
+async function handleActionPost(request) {
+	let data;
+	try {
+		data = await request.json();
+	} catch {
+		return textResponse("Invalid JSON", 400);
+	}
+
+	const { tableId, seatIndex, action, amount } = data;
+
+	if (!tableId) {
+		return textResponse("Missing tableId", 400);
+	}
+	if (typeof seatIndex !== "number") {
+		return textResponse("Missing or invalid seatIndex", 400);
+	}
+	if (!action || !["fold", "check", "call", "raise", "allin"].includes(action)) {
+		return textResponse("Missing or invalid action", 400);
+	}
+
+	const record = await saveAction(tableId, seatIndex, { action, amount });
+	return jsonResponse({
+		ok: true,
+		action: record.action,
+		amount: record.amount,
+		timestamp: record.timestamp,
+	});
+}
+
+async function handleActionGet(url) {
+	const tableId = url.searchParams.get("tableId");
+	const seatIndexParam = url.searchParams.get("seatIndex");
+
+	if (!tableId) {
+		return textResponse("Missing tableId", 400);
+	}
+	if (!seatIndexParam) {
+		return textResponse("Missing seatIndex", 400);
+	}
+
+	const seatIndex = Number.parseInt(seatIndexParam, 10);
+	if (Number.isNaN(seatIndex)) {
+		return textResponse("Invalid seatIndex", 400);
+	}
+
+	const record = await getAction(tableId, seatIndex);
+	if (!record) {
+		return new Response(null, { status: 204, headers: withCors() });
+	}
+	return jsonResponse(record);
+}
+
+async function handleActionDelete(url) {
+	const tableId = url.searchParams.get("tableId");
+	const seatIndexParam = url.searchParams.get("seatIndex");
+
+	if (!tableId) {
+		return textResponse("Missing tableId", 400);
+	}
+	if (!seatIndexParam) {
+		return textResponse("Missing seatIndex", 400);
+	}
+
+	const seatIndex = Number.parseInt(seatIndexParam, 10);
+	if (Number.isNaN(seatIndex)) {
+		return textResponse("Invalid seatIndex", 400);
+	}
+
+	await deleteAction(tableId, seatIndex);
+	return jsonResponse({ ok: true });
+}
+
+/* --------------------------------------------------------------------------------------------------
+Request Routing
+---------------------------------------------------------------------------------------------------*/
+
 function handleOptions() {
 	return new Response(null, { status: 204, headers: withCors() });
 }
 
 function routeRequest(request) {
 	const url = new URL(request.url);
-	if (url.pathname !== "/state") {
-		return textResponse("Not found", 404);
-	}
+	const pathname = url.pathname;
 
+	// Handle CORS preflight for all endpoints
 	if (request.method === "OPTIONS") {
 		return handleOptions();
 	}
 
-	if (request.method === "GET") {
-		return handleGet(url);
+	// Route: /state (existing functionality)
+	if (pathname === "/state") {
+		if (request.method === "GET") {
+			return handleStateGet(url);
+		}
+		if (request.method === "POST") {
+			return handleStatePost(request);
+		}
+		return textResponse("Method not allowed", 405);
 	}
 
-	if (request.method === "POST") {
-		return handlePost(request);
+	// Route: /action (new functionality for phone controls)
+	if (pathname === "/action") {
+		if (request.method === "GET") {
+			return handleActionGet(url);
+		}
+		if (request.method === "POST") {
+			return handleActionPost(request);
+		}
+		if (request.method === "DELETE") {
+			return handleActionDelete(url);
+		}
+		return textResponse("Method not allowed", 405);
 	}
 
-	return textResponse("Method not allowed", 405);
+	return textResponse("Not found", 404);
 }
 
 Deno.serve(async (request) => {

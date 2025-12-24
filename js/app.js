@@ -34,10 +34,16 @@ const HISTORY_LOG = false; // Set to true to enable history logging in the conso
 const DEBUG_FLOW = false; // Set to true for verbose game-flow logging
 
 let raisesThisRound = 0;
-const STATE_SYNC_ENDPOINT = "https://poker.tehes.deno.net/state";
+// Backend endpoints - update these to your own Deno Deploy URL after deployment
+const BACKEND_BASE_URL = "https://af-poker-20.deno.dev";
+const STATE_SYNC_ENDPOINT = `${BACKEND_BASE_URL}/state`;
+const ACTION_ENDPOINT = `${BACKEND_BASE_URL}/action`;
 let tableId = null;
 const STATE_SYNC_DELAY = 750;
 let stateSyncTimer = null;
+const ACTION_POLL_INTERVAL = 800; // How often to check for phone actions
+let actionPollTimer = null;
+let activePlayerSeatIndex = null; // Track whose turn it is
 
 // --- Analytics --------------------------------------------------------------
 let totalHands = 0;
@@ -137,6 +143,23 @@ function collectTableState() {
 		},
 	}));
 
+	// Calculate action context for the active player (for phone controls)
+	let actionContext = null;
+	if (activePlayerSeatIndex !== null) {
+		const activePlayer = players.find((p) => p.seatIndex === activePlayerSeatIndex);
+		if (activePlayer && !activePlayer.isBot) {
+			const needToCall = currentBet - activePlayer.roundBet;
+			const minRaise = needToCall + lastRaise;
+			const canCheck = currentBet === 0 || activePlayer.roundBet >= currentBet;
+			actionContext = {
+				needToCall,
+				minRaise,
+				canCheck,
+				playerChips: activePlayer.chips,
+			};
+		}
+	}
+
 	return {
 		phase: Phases[currentPhaseIndex] ?? null,
 		pot,
@@ -148,6 +171,8 @@ function collectTableState() {
 		dealerOrbitCount,
 		communityCards,
 		players: playerStates,
+		activePlayerSeatIndex,
+		actionContext,
 		timestamp: Date.now(),
 	};
 }
@@ -176,6 +201,62 @@ function queueStateSync() {
 		stateSyncTimer = null;
 		sendTableState();
 	}, STATE_SYNC_DELAY);
+}
+
+/* --------------------------------------------------------------------------------------------------
+Remote Action Polling (for phone controls)
+---------------------------------------------------------------------------------------------------*/
+
+async function fetchRemoteAction(seatIndex) {
+	if (!tableId || openCardsMode) return null;
+	try {
+		const url = `${ACTION_ENDPOINT}?tableId=${encodeURIComponent(tableId)}&seatIndex=${seatIndex}`;
+		const res = await fetch(url);
+		if (res.status === 204) {
+			return null; // No action pending
+		}
+		if (res.ok) {
+			return await res.json();
+		}
+	} catch (error) {
+		logFlow("fetchRemoteAction failed", error);
+	}
+	return null;
+}
+
+async function deleteRemoteAction(seatIndex) {
+	if (!tableId || openCardsMode) return;
+	try {
+		const url = `${ACTION_ENDPOINT}?tableId=${encodeURIComponent(tableId)}&seatIndex=${seatIndex}`;
+		await fetch(url, { method: "DELETE" });
+	} catch (error) {
+		logFlow("deleteRemoteAction failed", error);
+	}
+}
+
+function stopActionPolling() {
+	if (actionPollTimer) {
+		clearTimeout(actionPollTimer);
+		actionPollTimer = null;
+	}
+}
+
+function startActionPolling(player, onActionReceived) {
+	stopActionPolling();
+	
+	async function poll() {
+		const action = await fetchRemoteAction(player.seatIndex);
+		if (action) {
+			// Clear the action from the server
+			await deleteRemoteAction(player.seatIndex);
+			onActionReceived(action);
+		} else {
+			// Continue polling
+			actionPollTimer = setTimeout(poll, ACTION_POLL_INTERVAL);
+		}
+	}
+	
+	poll();
 }
 
 function startGame(event) {
@@ -411,6 +492,10 @@ function dealCards() {
  * Execute the standard pre-flop steps: rotate dealer, post blinds, deal cards, start betting.
  */
 function preFlop() {
+	// Clear any lingering active player state
+	stopActionPolling();
+	activePlayerSeatIndex = null;
+	
 	// Analytics: count hands and mark start time
 	totalHands++;
 	// Reset phase to preflop
@@ -667,6 +752,10 @@ function startBettingRound() {
 
 		// If this is a bot, choose an action based on hand strength
 		if (player.isBot) {
+			// Clear any active human player state
+			stopActionPolling();
+			activePlayerSeatIndex = null;
+			
 			document.querySelectorAll(".seat").forEach((s) => s.classList.remove("active"));
 			player.seat.classList.add("active");
 			actionButton.classList.add("hidden");
@@ -739,6 +828,10 @@ function startBettingRound() {
 		amountSlider.classList.remove("hidden");
 		sliderOutput.classList.remove("hidden");
 
+		// Set active player for phone controls and sync state
+		activePlayerSeatIndex = player.seatIndex;
+		queueStateSync();
+
 		const needToCall = currentBet - player.roundBet;
 
 		// UI: prepare slider and buttons
@@ -796,23 +889,40 @@ function startBettingRound() {
 		amountSlider.addEventListener("change", onSliderChange);
 		onSliderInput();
 
-		// Event handlers
-		function onAction() {
-			let bet = parseInt(amountSlider.value, 10);
-			const needToCall = currentBet - player.roundBet;
-			const minRaise = needToCall + lastRaise;
-
-			// Remove active highlight and slider listener
+		// Cleanup function to remove listeners and stop polling
+		function cleanup() {
+			stopActionPolling();
+			activePlayerSeatIndex = null;
 			player.seat.classList.remove("active");
 			amountSlider.removeEventListener("input", onSliderInput);
 			amountSlider.removeEventListener("change", onSliderChange);
+			foldButton.removeEventListener("click", onFold);
+			actionButton.removeEventListener("click", onAction);
+		}
+
+		// Process an action (from local button or remote phone)
+		function processAction(actionType, amount) {
+			cleanup();
+			
+			const needToCall = currentBet - player.roundBet;
+			const minRaise = needToCall + lastRaise;
+			let bet = amount;
 
 			// Handle action types
-			if (bet === 0) {
-				// Check
+			if (actionType === "fold") {
+				player.folded = true;
+				notifyPlayerAction(player, "fold", 0);
+				player.qr.hide();
+			} else if (actionType === "check") {
 				notifyPlayerAction(player, "check", 0);
-			} else if (bet === player.chips) {
-				// All-In
+			} else if (actionType === "call") {
+				bet = Math.min(needToCall, player.chips);
+				player.placeBet(bet);
+				pot += bet;
+				document.getElementById("pot").textContent = pot;
+				notifyPlayerAction(player, "call", bet);
+			} else if (actionType === "allin") {
+				bet = player.chips;
 				player.placeBet(bet);
 				pot += bet;
 				document.getElementById("pot").textContent = pot;
@@ -825,80 +935,85 @@ function startBettingRound() {
 					currentBet = Math.max(currentBet, player.roundBet);
 				}
 				notifyPlayerAction(player, "allin", bet);
-				foldButton.removeEventListener("click", onFold);
-				actionButton.removeEventListener("click", onAction);
-				// Decide whether to continue the betting loop or advance the phase
-				if (cycles < players.length) {
-					logFlow("human next", { name: player.name });
-					nextPlayer();
-				} else if (anyUncalled()) {
-					logFlow("human wait", { name: player.name });
-					nextPlayer();
-				} else {
-					logFlow("human advance", { name: player.name });
-					setPhase();
-				}
-				return;
-			} else if (bet === needToCall) {
-				// Call
-				player.placeBet(bet);
-				pot += bet;
-				document.getElementById("pot").textContent = pot;
-				notifyPlayerAction(player, "call", bet);
-			} else {
-				// Raise
+			} else if (actionType === "raise") {
+				// Validate and adjust raise amount
 				const autoMin = bet < minRaise && bet < player.chips;
 				if (autoMin) {
 					bet = Math.min(player.chips, minRaise);
 				}
-				player.placeBet(bet);
-				currentBet = player.roundBet;
-				pot += bet;
-				document.getElementById("pot").textContent = pot;
-				notifyPlayerAction(player, "raise", bet);
-				lastRaise = bet - needToCall;
-				raisesThisRound++;
+				// Check if this is actually an all-in
+				if (bet >= player.chips) {
+					bet = player.chips;
+					player.placeBet(bet);
+					pot += bet;
+					document.getElementById("pot").textContent = pot;
+					if (bet >= minRaise) {
+						currentBet = player.roundBet;
+						lastRaise = bet - needToCall;
+						raisesThisRound++;
+					} else if (bet >= needToCall) {
+						currentBet = Math.max(currentBet, player.roundBet);
+					}
+					notifyPlayerAction(player, "allin", bet);
+				} else {
+					player.placeBet(bet);
+					currentBet = player.roundBet;
+					pot += bet;
+					document.getElementById("pot").textContent = pot;
+					notifyPlayerAction(player, "raise", bet);
+					lastRaise = bet - needToCall;
+					raisesThisRound++;
+				}
 			}
-
-			foldButton.removeEventListener("click", onFold);
-			actionButton.removeEventListener("click", onAction);
 
 			// Decide whether to continue the betting loop or advance the phase
 			if (cycles < players.length) {
-				logFlow("human next", { name: player.name });
+				logFlow("action next", { name: player.name, action: actionType });
 				nextPlayer();
 			} else if (anyUncalled()) {
-				logFlow("human wait", { name: player.name });
+				logFlow("action wait", { name: player.name, action: actionType });
 				nextPlayer();
 			} else {
-				logFlow("human advance", { name: player.name });
+				logFlow("action advance", { name: player.name, action: actionType });
 				setPhase();
 			}
 		}
-		function onFold() {
-			player.folded = true;
-			notifyPlayerAction(player, "fold", 0);
-			player.qr.hide();
-			player.seat.classList.remove("active");
-			amountSlider.removeEventListener("input", onSliderInput);
-			amountSlider.removeEventListener("change", onSliderChange);
-			foldButton.removeEventListener("click", onFold);
-			actionButton.removeEventListener("click", onAction);
-			// Decide whether to continue the betting loop or advance the phase
-			if (cycles < players.length) {
-				logFlow("fold next", { name: player.name });
-				nextPlayer();
-			} else if (anyUncalled()) {
-				logFlow("fold wait", { name: player.name });
-				nextPlayer();
+
+		// Event handlers for local buttons
+		function onAction() {
+			let bet = parseInt(amountSlider.value, 10);
+			const needToCall = currentBet - player.roundBet;
+			
+			// Determine action type from bet amount
+			let actionType;
+			if (bet === 0) {
+				actionType = "check";
+			} else if (bet === player.chips) {
+				actionType = "allin";
+			} else if (bet === needToCall) {
+				actionType = "call";
 			} else {
-				logFlow("fold advance", { name: player.name });
-				setPhase();
+				actionType = "raise";
 			}
+			
+			processAction(actionType, bet);
+		}
+		
+		function onFold() {
+			processAction("fold", 0);
+		}
+
+		// Handle remote action from phone
+		function onRemoteAction(remoteAction) {
+			logFlow("received remote action", remoteAction);
+			processAction(remoteAction.action, remoteAction.amount || 0);
 		}
 
 		foldButton.addEventListener("click", onFold);
 		actionButton.addEventListener("click", onAction);
+		
+		// Start polling for remote actions from phone
+		startActionPolling(player, onRemoteAction);
 	}
 
 	nextPlayer();
@@ -949,6 +1064,10 @@ function animateChipTransfer(amount, playerObj, onDone) {
 }
 
 function doShowdown() {
+	// Clear active player state and stop polling
+	stopActionPolling();
+	activePlayerSeatIndex = null;
+	
 	// Reset round bets now that they are in the pot
 	players.forEach((p) => p.resetRoundBet());
 
