@@ -32,6 +32,24 @@
 		</div>
 		<div id="singleview-notifications" class="hidden">
 		</div>
+		<!-- Player action controls (shown when it's this player's turn) -->
+		<section id="phone-actions" class="hidden">
+			<div class="action-status">
+				<span id="action-prompt">Your turn!</span>
+				<span id="call-amount"></span>
+			</div>
+			<div class="action-buttons">
+				<button type="button" id="phone-fold-button">Fold</button>
+				<button type="button" id="phone-action-button">Check</button>
+			</div>
+			<div class="action-slider">
+				<input type="range" id="phone-amount-slider" name="amount" value="0" min="0" max="2000" step="10">
+				<output id="phone-slider-output">0</output>
+			</div>
+			<div id="action-sent" class="hidden">
+				<span>✓ Action sent! Waiting for table...</span>
+			</div>
+		</section>
 	</div>
 	<script type="module" src="./js/singleView.js"></script>
 </body>

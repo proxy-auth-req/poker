@@ -13,6 +13,8 @@ tablet or laptop) handles community cards, blinds, pot, and betting rounds.
 - **No Setup Required**: Just open the table in your browser and start playing. No app install, no
   sign-ups.
 - **Device Pairing via QR**: Each player scans a code to privately view their cards on their phone.
+- **Phone Controls**: Players can fold, call, check, and raise directly from their phones - no need
+  to touch the main screen!
 - **Automatic Game Logic**: Handles blinds, bets, pots, side pots, and showdown evaluations.
 - **Progressive Blinds**: Blinds automatically double every 2 complete dealer orbits to keep the
   action going.
@@ -70,21 +72,48 @@ The table works fully offline after the first complete load.
 
 ---
 
-## 🌐 Optional Backend Sync
+## 🌐 Backend Sync & Phone Controls
 
-- The table generates a `tableId` automatically and posts the table state to the backend.
-- Hole-cards views include the same `tableId` in the QR and poll the backend to keep cards/chips in
-  sync, including pot and fold status. If the backend is unreachable, the QR data stays in place and
-  play continues offline.
+The game uses a backend API for two purposes:
+1. **State Sync**: Keep phone views in sync with the main table (chips, pot, notifications)
+2. **Phone Controls**: Allow players to fold, call, and raise from their phones
+
+### Setting Up Your Own Backend (Deno Deploy)
+
+The backend code is in `api/main.js`. To host your own:
+
+1. **Create a Deno Deploy account** at [dash.deno.com](https://dash.deno.com) (free)
+2. **Create a new project** and connect your GitHub repository
+3. **Set the entrypoint** to `api/main.js`
+4. **Copy your deployment URL** (e.g., `https://your-project.deno.dev`)
+5. **Update the frontend** - change `BACKEND_BASE_URL` in both files:
+   - `js/app.js` (line ~40)
+   - `js/singleView.js` (line ~20)
+
+```javascript
+// Change this line in both files:
+const BACKEND_BASE_URL = "https://your-project.deno.dev";
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/state` | GET | Retrieve game state for a table |
+| `/state` | POST | Save game state from main table |
+| `/action` | GET | Check for pending player action |
+| `/action` | POST | Submit player action from phone |
+| `/action` | DELETE | Clear processed action |
 
 ---
 
 ## 🤖 How It Works
 
-- The shared device runs the table (e.g., tablet).
+- The shared device runs the table (e.g., tablet or TV).
 - When a round starts, each player sees a QR code.
 - They scan it and view their private hole cards on their own phone.
-- Players take turns acting via the main table.
+- When it's a player's turn, action buttons appear on their phone (Fold, Check/Call, Raise).
+- Players can act from their phone OR from the main table - whichever is more convenient.
 - Game flow logic ensures proper handling of:
 
   - **Dealer rotation** and automatic blind posting
@@ -115,9 +144,10 @@ flow. Enable this flag when investigating hangs or unexpected behavior.
 
 ## 📋 Known Limitations
 
-- Live syncing is best-effort; if the backend is unreachable, devices fall back to local QR data.
+- Live syncing is best-effort; if the backend is unreachable, devices fall back to local QR data
+  and phone controls won't work (main table controls still function).
 - No persistent chip stacks or session saving (yet).
-- Not designed for remote multiplayer.
+- Not designed for remote multiplayer (players should be in the same room).
 - Fixed blind structure (doubles every 2 orbits) — not customizable.
 
 ---

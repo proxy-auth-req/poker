@@ -42,7 +42,9 @@ const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 const CORE_ASSETS = [
 	"./", // resolves to index.html
 	"./index.html",
+	"./hole-cards.html",
 	"./js/app.js",
+	"./js/singleView.js",
 	"./js/kjua.min.js",
 	"./css/style.css",
 	"./cards/1B.svg",
@@ -54,6 +56,7 @@ const CORE_ASSETS = [
 	"./icons/180x180.png",
 	"./icons/favicon.png",
 	"./icons/poker-chip.svg",
+	"./icons/chip.svg",
 	"./manifest.json",
 	"./js/bot.js",
 	"./js/pokersolver.js",

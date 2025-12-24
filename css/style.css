@@ -538,3 +538,143 @@ MEDIA QUERIES
         display: none;
     }
 }
+
+/*
+-------------------------------------------------------------------
+PHONE ACTION CONTROLS (hole-cards.html)
+-------------------------------------------------------------------
+*/
+
+#phone-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background-color: hsla(220, 40%, 20%, 0.9);
+    border-radius: 1rem;
+    box-shadow: var(--shadow);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#phone-actions .action-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+#phone-actions #action-prompt {
+    font-size: 1.3em;
+    color: var(--yellow);
+    font-weight: bold;
+}
+
+#phone-actions #call-amount {
+    font-size: 1.1em;
+    color: var(--font-color);
+    background-color: var(--blue);
+    padding: 0.3rem 1rem;
+    border-radius: 20px;
+}
+
+#phone-actions .action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+#phone-actions button {
+    width: auto;
+    min-width: 100px;
+    padding: 1rem 1.5rem;
+    font-size: 1.1em;
+}
+
+#phone-actions #phone-fold-button {
+    background-color: hsl(0, 60%, 45%);
+    color: white;
+}
+
+#phone-actions #phone-fold-button:active {
+    background-color: hsl(0, 70%, 40%);
+}
+
+#phone-actions #phone-action-button {
+    min-width: 120px;
+}
+
+#phone-actions .action-slider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 300px;
+}
+
+#phone-actions input[type=range] {
+    width: 100%;
+    margin: 0;
+}
+
+#phone-actions output {
+    font-size: 1.4em;
+    min-width: 80px;
+}
+
+#phone-actions button:disabled,
+#phone-actions input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#phone-actions #action-sent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.8rem 1.2rem;
+    background-color: hsl(120, 40%, 30%);
+    border-radius: 0.5rem;
+    color: white;
+    font-size: 1.1em;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Highlight name badge when it's the player's turn */
+#hole-cards #single:has(#phone-actions:not(.hidden)) h3 {
+    background-color: var(--yellow);
+    animation: turnPulse 2s ease-in-out infinite;
+}
+
+@keyframes turnPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 hsla(40, 90%, 60%, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px hsla(40, 90%, 60%, 0);
+    }
+}
