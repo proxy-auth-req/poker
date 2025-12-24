@@ -127,20 +127,27 @@ output.invalid {
 GRID (with scoreboard on left)
 -------------------------------------------------------------------
 */
+html, body {
+    overflow: hidden;
+    height: 100vh;
+    max-height: 100vh;
+}
+
 main {
     width: 100vw;
-    height: 100dvh;
+    height: 100vh;
+    max-height: 100vh;
     place-items: center;
     display: grid;
-    grid-template-columns: 25% repeat(3, 1fr);
+    grid-template-columns: minmax(200px, 20%) repeat(3, 1fr);
     grid-template-rows: 1fr auto 1fr;
     grid-column-gap: 0px;
-    grid-row-gap: 2vh;
+    grid-row-gap: 1vh;
+    overflow: hidden;
 }
 
 main .seat {
-    width: 22vmin;
-    min-width: 120px;
+    width: clamp(100px, 18vmin, 200px);
     transition: all 0.5s;
 }
 
@@ -187,6 +194,12 @@ SCOREBOARD (left side panel)
 -------------------------------------------------------------------
 */
 #scoreboard {
+    /* Override the generic aside positioning */
+    position: static;
+    transform: none;
+    top: auto;
+    left: auto;
+    
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -195,14 +208,17 @@ SCOREBOARD (left side panel)
     background-color: hsla(220, 40%, 15%, 0.85);
     border-right: 3px solid var(--blue-lightest);
     height: 100%;
+    overflow-y: auto;
+    max-height: 100vh;
 }
 
 #scoreboard h2 {
-    font-size: clamp(1.5rem, 3vmin, 2.5rem);
+    font-size: clamp(1rem, 2.5vmin, 2rem);
     color: var(--yellow);
-    margin-bottom: 3vmin;
+    margin-bottom: 2vmin;
     text-transform: uppercase;
     letter-spacing: 0.1em;
+    flex-shrink: 0;
 }
 
 #scoreboard-list {
@@ -212,24 +228,28 @@ SCOREBOARD (left side panel)
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 1.5vmin;
+    gap: 1vmin;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
 }
 
 #scoreboard-list li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5vmin 2vmin;
+    padding: 1vmin 1.5vmin;
     background-color: var(--blue);
-    border-radius: 1vmin;
-    font-size: clamp(1.2rem, 2.5vmin, 2rem);
+    border-radius: 0.8vmin;
+    font-size: clamp(0.9rem, 2vmin, 1.6rem);
     transition: all 0.3s ease;
+    flex-shrink: 0;
 }
 
 #scoreboard-list li:first-child {
     background-color: var(--yellow);
     color: var(--blue-darker);
-    font-size: clamp(1.4rem, 3vmin, 2.5rem);
+    font-size: clamp(1rem, 2.2vmin, 1.8rem);
 }
 
 #scoreboard-list li:first-child::before {
@@ -327,15 +347,15 @@ TABLE-MIDDLE
 
 /* POT display - much larger and more prominent */
 #pot {
-    padding: 2vmin 4vmin;
+    padding: 1.5vmin 3vmin;
     background: linear-gradient(135deg, var(--yellow) 0%, hsl(35, 90%, 50%) 100%);
-    box-shadow: var(--shadow), 0 0 30px hsla(40, 90%, 50%, 0.4);
+    box-shadow: var(--shadow), 0 0 20px hsla(40, 90%, 50%, 0.4);
     color: var(--blue-darker);
-    border-radius: 2vmin;
-    font-size: clamp(2rem, 5vmin, 5rem);
+    border-radius: 1.5vmin;
+    font-size: clamp(1.5rem, 4vmin, 3.5rem);
     font-weight: bold;
     text-align: center;
-    min-width: 200px;
+    min-width: 150px;
     animation: potGlow 2s ease-in-out infinite alternate;
 }
 
@@ -357,20 +377,20 @@ TABLE-MIDDLE
     background-color: hsla(220, 40%, 10%, 0.9);
     border: 2px solid var(--blue-lightest);
     border-radius: 1vmin;
-    padding: 1.5vmin 3vmin;
-    min-height: 4vmin;
+    padding: 1vmin 2vmin;
+    max-height: 15vh;
     width: 90%;
-    max-width: 800px;
+    max-width: 700px;
     display: flex;
     flex-direction: column;
-    gap: 0.5vmin;
-    overflow: hidden;
+    gap: 0.3vmin;
+    overflow-y: auto;
 }
 
 #notification span {
     display: block;
-    font-size: clamp(1rem, 2vmin, 2rem);
-    padding: 0.5vmin 0;
+    font-size: clamp(0.8rem, 1.5vmin, 1.4rem);
+    padding: 0.3vmin 0;
     border-bottom: 1px solid hsla(220, 20%, 50%, 0.3);
 }
 
@@ -380,7 +400,7 @@ TABLE-MIDDLE
 
 #notification span:first-child {
     color: var(--yellow);
-    font-size: clamp(1.2rem, 2.5vmin, 2.5rem);
+    font-size: clamp(1rem, 2vmin, 1.8rem);
     font-weight: bold;
     border-bottom: 2px solid var(--yellow);
 }
@@ -521,8 +541,8 @@ main .seat.folded .hole-cards::after {
 }
 
 .hole-cards img {
-    width: 10vmin;
-    margin: 0.5vmin;
+    width: clamp(50px, 8vmin, 100px);
+    margin: 0.3vmin;
 }
 
 .hole-cards .big {
