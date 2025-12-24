@@ -35,7 +35,7 @@ const DEBUG_FLOW = false; // Set to true for verbose game-flow logging
 
 let raisesThisRound = 0;
 // Backend endpoints - update these to your own Deno Deploy URL after deployment
-const BACKEND_BASE_URL = "https://poker.tehes.deno.net";
+const BACKEND_BASE_URL = "https://af-poker-20.deno.dev";
 const STATE_SYNC_ENDPOINT = `${BACKEND_BASE_URL}/state`;
 const ACTION_ENDPOINT = `${BACKEND_BASE_URL}/action`;
 let tableId = null;

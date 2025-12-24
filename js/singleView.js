@@ -19,7 +19,7 @@ const tableId = urlParams.get("tableId") || "";
 const seatIndexParam = params[4] ? parseInt(params[4], 10) : null;
 
 // Backend endpoints - update these to your own Deno Deploy URL after deployment
-const BACKEND_BASE_URL = "https://poker.tehes.deno.net";
+const BACKEND_BASE_URL = "https://af-poker-20.deno.dev";
 const STATE_ENDPOINT = `${BACKEND_BASE_URL}/state`;
 const ACTION_ENDPOINT = `${BACKEND_BASE_URL}/action`;
 
