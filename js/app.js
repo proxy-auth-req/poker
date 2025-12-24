@@ -16,6 +16,7 @@ const foldButton = document.querySelector("#fold-button");
 const actionButton = document.querySelector("#action-button");
 const amountSlider = document.querySelector("#amount-slider");
 const sliderOutput = document.querySelector("output");
+const scoreboardList = document.querySelector("#scoreboard-list");
 const Phases = ["preflop", "flop", "turn", "river", "showdown"];
 let currentPhaseIndex = 0;
 let currentBet = 0;
@@ -103,6 +104,34 @@ function logFlow(msg, data) {
 			console.log("%c" + ts, "color:#888", msg);
 		}
 	}
+}
+
+function updateScoreboard() {
+	if (!scoreboardList || players.length === 0) return;
+	
+	// Sort players by chips (descending)
+	const sortedPlayers = [...players].sort((a, b) => b.chips - a.chips);
+	
+	scoreboardList.innerHTML = "";
+	
+	sortedPlayers.forEach((player) => {
+		const li = document.createElement("li");
+		if (player.folded) {
+			li.classList.add("folded-player");
+		}
+		
+		const nameSpan = document.createElement("span");
+		nameSpan.className = "player-name";
+		nameSpan.textContent = player.name;
+		
+		const chipsSpan = document.createElement("span");
+		chipsSpan.className = "player-chips";
+		chipsSpan.textContent = `💵 ${player.chips}`;
+		
+		li.appendChild(nameSpan);
+		li.appendChild(chipsSpan);
+		scoreboardList.appendChild(li);
+	});
 }
 
 function getHandsPlayedBucket(handCount) {
@@ -262,6 +291,7 @@ function startActionPolling(player, onActionReceived) {
 function startGame(event) {
 	if (!gameStarted) {
 		createPlayers();
+		updateScoreboard();
 		openCardsMode = players.filter((p) => !p.isBot).length === 1;
 
 		if (players.length > 1) {
@@ -538,6 +568,7 @@ function preFlop() {
 		}
 	});
 	players = remainingPlayers;
+	updateScoreboard();
 
 	// Start statistics for a new hand
 	players.forEach((p) => {
@@ -1109,6 +1140,7 @@ function doShowdown() {
 			actionButton.classList.add("hidden");
 			amountSlider.classList.add("hidden");
 			sliderOutput.classList.add("hidden");
+			updateScoreboard();
 			queueStateSync();
 		});
 		return;
@@ -1294,6 +1326,7 @@ function doShowdown() {
 		amountSlider.classList.add("hidden");
 		sliderOutput.classList.add("hidden");
 		startButton.classList.remove("hidden");
+		updateScoreboard();
 		queueStateSync();
 	});
 	return; // exit doShowdown early because UI flow continues in animation
@@ -1313,6 +1346,8 @@ function deletePlayer(ev) {
 function notifyPlayerAction(player, action = "", amount = 0) {
 	// Remove any previous action indicator before adding a new one
 	player.seat.classList.remove("checked", "called", "raised", "allin");
+	// Update scoreboard to reflect folds and chip changes
+	updateScoreboard();
 	// Update statistics based on action and phase
 	if (currentPhaseIndex === 0) {
 		if (action === "call" || action === "raise" || action === "allin") {
